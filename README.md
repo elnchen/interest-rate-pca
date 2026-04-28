@@ -45,8 +45,8 @@ The six-month forecast is a simple PCA-factor linear model.
 | `results/pca_loadings.csv` | Component weights for every retained PCA. |
 | `results/pca_scores.csv` | Weekly component score history. |
 | `results/component_interpretations.csv` | Structured interpretation for each retained component. |
-| `results/component_interpretation.md` | Human-readable report. |
-| `results/forecast_6m_report.md` | Human-readable six-month forecast report. |
+| `results/component_interpretation.md` | component interpretation report. |
+| `results/forecast_6m_report.md` |  six-month forecast report. |
 | `results/forecast_6m_weekly_yields.csv` | Forecast yield curves for each future week. |
 | `results/forecast_6m_weekly_changes_bps.csv` | Forecast weekly yield changes in basis points. |
 | `results/forecast_6m_endpoint.csv` | Latest actual curve versus six-month forecast endpoint. |
