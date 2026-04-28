@@ -44,12 +44,10 @@ The forecast uses the first 5 global principal components of standardized weekly
 
 ## In-Sample One-Week Factor Fit
 
-| Component | R2 | RMSE |
+| Component | R^2 | RMSE |
 | --- | ---: | ---: |
 | PC1 | 0.010 | 2.741 |
 | PC2 | 0.010 | 1.548 |
 | PC3 | 0.022 | 1.310 |
 | PC4 | 0.016 | 1.085 |
 | PC5 | 0.008 | 0.899 |
-
-This is a mechanical statistical forecast, not a macro scenario or investment recommendation. Linear factor models are especially limited over six-month horizons because policy decisions, inflation shocks, and risk sentiment can move curves in ways not present in recent lagged PC scores.
