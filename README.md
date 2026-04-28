@@ -14,9 +14,11 @@ Those tenors exist across the three selected regions and are long enough to capt
 
 | Region | Source used by the pipeline | Notes |
 | --- | --- | --- |
-| United States | U.S. Department of the Treasury, Daily Treasury Par Yield Curve Rates: https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve | Official Treasury par curve table. The script pages through the Treasury HTML table because the CSV endpoint may reject direct automated downloads. |
-| Euro area | ECB Data Portal API, Financial market data - yield curve, all euro-area government bonds, spot rates: `YC.B.U2.EUR.4F.G_N_C.SV_C_YM.SR_*` | Official ECB daily estimated euro-area government-bond spot curve. |
-| Japan | FetchSeries workbook for "Japan constant-maturity government-bond yield curve (Ministry of Finance)": https://www.fetchseries.com/interest-rates/japan-constant-maturity-government-bond-yield-curve-ministry-of-finance/ | FetchSeries is the downloadable provider; the dataset metadata identifies Japan's Ministry of Finance as the source. |
+| United States | [U.S. Department of the Treasury, Daily Treasury Par Yield Curve Rates](https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve) | Official Treasury par curve table. The script pages through the Treasury HTML table because the CSV endpoint may reject direct automated downloads. |
+| Euro area | [ECB Data Portal API yield-curve CSV endpoint](https://data-api.ecb.europa.eu/service/data/YC/B.U2.EUR.4F.G_N_C.SV_C_YM.SR_10Y?startPeriod=2004-09-06&format=csvdata), using `YC.B.U2.EUR.4F.G_N_C.SV_C_YM.SR_*` for each tenor | Official ECB daily estimated euro-area government-bond spot curve. See also the [ECB yield curve methodology](https://data.ecb.europa.eu/methodology/yield-curves). |
+| Japan | [FetchSeries workbook for "Japan constant-maturity government-bond yield curve (Ministry of Finance)"](https://www.fetchseries.com/interest-rates/japan-constant-maturity-government-bond-yield-curve-ministry-of-finance/) | FetchSeries is the downloadable provider; the dataset metadata identifies Japan's Ministry of Finance as the source. |
+
+The ECB pipeline downloads one CSV per tenor by replacing `SR_10Y` in the linked example with `SR_2Y`, `SR_5Y`, `SR_10Y`, `SR_20Y`, and `SR_30Y`.
 
 ## Method
 
@@ -57,4 +59,3 @@ To change the number of components:
 ```bash
 python scripts/run_pipeline.py --components 5
 ```
-
