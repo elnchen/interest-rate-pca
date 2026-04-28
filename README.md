@@ -1,6 +1,6 @@
 # Interest Rate PCA
 
-This project downloads yield-curve data for U.S. Treasuries, euro-area government bonds, and Japanese government bonds, aligns common tenors, runs PCA on weekly yield changes, and writes both tables and plain-English component interpretations.
+This project downloads yield-curve data for U.S. Treasuries, euro-area government bonds, and Japanese government bonds, aligns common tenors, runs PCA on weekly yield changes, and here's the generated table and component interpretations.
 
 ## Markets and tenors
 
@@ -32,7 +32,7 @@ The ECB pipeline downloads one CSV per tenor by replacing `SR_10Y` in the linked
 
 PCA is performed on changes, not yield levels, because level series are highly persistent. Standardization makes the component patterns comparable across regions and tenors.
 
-The six-month forecast is a simple PCA-factor linear model. It is useful as a transparent baseline, not as a structural macro forecast.
+The six-month forecast is a simple PCA-factor linear model. 
 
 ## Outputs
 
