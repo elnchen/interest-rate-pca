@@ -16,6 +16,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
 from sklearn.preprocessing import StandardScaler
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +56,17 @@ class ScopeResult:
     loadings: pd.DataFrame
     scores: pd.DataFrame
     interpretations: pd.DataFrame
+
+
+@dataclass(frozen=True)
+class ForecastResult:
+    factor_scores: pd.DataFrame
+    changes_bps: pd.DataFrame
+    yields: pd.DataFrame
+    endpoint: pd.DataFrame
+    coefficients: pd.DataFrame
+    factor_metrics: pd.DataFrame
+    feature_metrics: pd.DataFrame
 
 
 def download_bytes(url: str) -> bytes:
@@ -389,6 +402,142 @@ def run_all_pcas(changes_bps: pd.DataFrame, n_components: int) -> ScopeResult:
     )
 
 
+def fit_oriented_global_pca(changes_bps: pd.DataFrame, n_components: int) -> tuple[list[str], StandardScaler, PCA, pd.DataFrame]:
+    features = [f"{region}_{tenor}" for region in ["US", "EA", "JP"] for tenor in TENORS]
+    data = changes_bps[features].dropna()
+
+    scaler = StandardScaler()
+    scaled = scaler.fit_transform(data)
+
+    component_count = min(n_components, scaled.shape[1], scaled.shape[0])
+    pca = PCA(n_components=component_count)
+    scores_array = pca.fit_transform(scaled)
+    components = pca.components_.copy()
+
+    for idx in range(component_count):
+        sign = orient_component(components[idx], features)
+        components[idx] *= sign
+        scores_array[:, idx] *= sign
+
+    pca.components_ = components
+    component_names = [f"PC{idx + 1}" for idx in range(component_count)]
+    scores = pd.DataFrame(scores_array, index=data.index, columns=component_names)
+    return features, scaler, pca, scores
+
+
+def forecast_yield_curves(
+    weekly: pd.DataFrame,
+    changes_bps: pd.DataFrame,
+    n_components: int,
+    horizon_weeks: int,
+) -> ForecastResult:
+    features, scaler, pca, scores = fit_oriented_global_pca(changes_bps, n_components=n_components)
+
+    lagged_scores = scores.iloc[:-1]
+    next_scores = scores.iloc[1:]
+    model = LinearRegression()
+    model.fit(lagged_scores, next_scores)
+
+    in_sample_predictions = model.predict(lagged_scores)
+    factor_metrics = []
+    for idx, component in enumerate(scores.columns):
+        actual = next_scores.iloc[:, idx].to_numpy()
+        predicted = in_sample_predictions[:, idx]
+        factor_metrics.append(
+            {
+                "component": component,
+                "one_week_r2": r2_score(actual, predicted),
+                "one_week_rmse": float(np.sqrt(np.mean((predicted - actual) ** 2))),
+            }
+        )
+
+    predicted_scaled_changes = pca.inverse_transform(in_sample_predictions)
+    predicted_changes_bps = scaler.inverse_transform(predicted_scaled_changes)
+    actual_changes_bps = changes_bps.loc[next_scores.index, features].to_numpy()
+    feature_metrics = pd.DataFrame(
+        {
+            "feature": features,
+            "one_week_change_rmse_bps": np.sqrt(np.mean((predicted_changes_bps - actual_changes_bps) ** 2, axis=0)),
+        }
+    )
+    feature_metrics["region"] = feature_metrics["feature"].map(parse_region)
+    feature_metrics["tenor_years"] = feature_metrics["feature"].map(parse_tenor_year)
+
+    future_scores = []
+    current = scores.iloc[[-1]].copy()
+    for _ in range(horizon_weeks):
+        current = pd.DataFrame(model.predict(current), columns=scores.columns)
+        future_scores.append(current.iloc[0].to_numpy())
+
+    forecast_index = pd.date_range(
+        start=weekly.index.max() + pd.Timedelta(days=7),
+        periods=horizon_weeks,
+        freq="W-FRI",
+        name="week",
+    )
+    factor_scores = pd.DataFrame(future_scores, index=forecast_index, columns=scores.columns)
+
+    forecast_scaled_changes = pca.inverse_transform(factor_scores.to_numpy())
+    forecast_changes = pd.DataFrame(
+        scaler.inverse_transform(forecast_scaled_changes),
+        index=forecast_index,
+        columns=features,
+    )
+    forecast_changes.index.name = "week"
+
+    last_yields = weekly.loc[weekly.index.max(), features].to_numpy()
+    forecast_yields = pd.DataFrame(
+        last_yields + np.cumsum(forecast_changes.to_numpy() / 100.0, axis=0),
+        index=forecast_index,
+        columns=features,
+    )
+    forecast_yields.index.name = "week"
+
+    endpoint_rows = []
+    final_yields = forecast_yields.iloc[-1]
+    final_changes = (final_yields - weekly.loc[weekly.index.max(), features]) * 100.0
+    for feature in features:
+        endpoint_rows.append(
+            {
+                "feature": feature,
+                "region": parse_region(feature),
+                "tenor_years": parse_tenor_year(feature),
+                "last_actual_yield": weekly.loc[weekly.index.max(), feature],
+                "forecast_6m_yield": final_yields[feature],
+                "forecast_6m_change_bps": final_changes[feature],
+            }
+        )
+    endpoint = pd.DataFrame(endpoint_rows)
+
+    coefficient_rows = []
+    for target_idx, target_component in enumerate(scores.columns):
+        coefficient_rows.append(
+            {
+                "target_component": target_component,
+                "lag_component": "intercept",
+                "coefficient": model.intercept_[target_idx],
+            }
+        )
+        for lag_idx, lag_component in enumerate(scores.columns):
+            coefficient_rows.append(
+                {
+                    "target_component": target_component,
+                    "lag_component": lag_component,
+                    "coefficient": model.coef_[target_idx, lag_idx],
+                }
+            )
+
+    return ForecastResult(
+        factor_scores=factor_scores,
+        changes_bps=forecast_changes,
+        yields=forecast_yields,
+        endpoint=endpoint,
+        coefficients=pd.DataFrame(coefficient_rows),
+        factor_metrics=pd.DataFrame(factor_metrics),
+        feature_metrics=feature_metrics,
+    )
+
+
 def plot_explained_variance(variance: pd.DataFrame, figures_dir: Path) -> None:
     for scope, group in variance.groupby("scope"):
         fig, ax = plt.subplots(figsize=(7, 4))
@@ -452,6 +601,34 @@ def plot_global_heatmap(loadings: pd.DataFrame, figures_dir: Path) -> None:
     plt.close(fig)
 
 
+def plot_forecast_curves(weekly: pd.DataFrame, forecast: ForecastResult, figures_dir: Path) -> None:
+    last_week = weekly.index.max()
+    comparison_steps = [
+        (last_week, weekly.loc[last_week], "Latest actual"),
+        (forecast.yields.index[min(12, len(forecast.yields) - 1)], forecast.yields.iloc[min(12, len(forecast.yields) - 1)], "3-month forecast"),
+        (forecast.yields.index[-1], forecast.yields.iloc[-1], "6-month forecast"),
+    ]
+
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4), sharey=False)
+    colors = ["#264653", "#2A9D8F", "#E76F51"]
+    tenor_years = [TENOR_YEARS[tenor] for tenor in TENORS]
+
+    for ax, region in zip(axes, ["US", "EA", "JP"]):
+        features = [f"{region}_{tenor}" for tenor in TENORS]
+        for color, (date, row, label) in zip(colors, comparison_steps):
+            ax.plot(tenor_years, row[features].to_numpy(), marker="o", color=color, label=f"{label} ({date.date()})")
+        ax.set_title(REGION_NAMES[region])
+        ax.set_xlabel("Tenor in years")
+        ax.set_xticks(tenor_years)
+        ax.grid(alpha=0.25)
+    axes[0].set_ylabel("Yield (%)")
+    axes[-1].legend(loc="best", fontsize=8)
+    fig.suptitle("PCA linear-regression yield-curve forecast")
+    fig.tight_layout()
+    fig.savefig(figures_dir / "forecast_6m_yield_curves.png", dpi=160)
+    plt.close(fig)
+
+
 def write_markdown_report(
     report_path: Path,
     weekly: pd.DataFrame,
@@ -508,15 +685,85 @@ def write_markdown_report(
     report_path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def write_outputs(result: ScopeResult, weekly: pd.DataFrame, changes_bps: pd.DataFrame, results_dir: Path, figures_dir: Path) -> None:
+def write_forecast_report(report_path: Path, weekly: pd.DataFrame, forecast: ForecastResult, horizon_weeks: int) -> None:
+    lines: list[str] = []
+    lines.append("# Six-Month PCA Factor Forecast")
+    lines.append("")
+    lines.append(f"Generated: {datetime.now().date().isoformat()}")
+    lines.append("")
+    lines.append("## Method")
+    lines.append("")
+    lines.append(
+        "The forecast uses the first 5 global principal components of standardized "
+        "weekly yield changes across the U.S., euro-area, and Japan curves. A "
+        "multi-output ordinary least squares regression predicts next week's PC "
+        "scores from this week's PC scores. Forecasted PC scores are then mapped "
+        "back into yield changes and accumulated from the latest observed curve."
+    )
+    lines.append("")
+    lines.append(f"- Latest observed weekly curve: {weekly.index.max().date()}.")
+    lines.append(f"- Forecast horizon: {horizon_weeks} weeks, ending {forecast.yields.index.max().date()}.")
+    lines.append("- Units: yields are percentage points; changes are basis points.")
+    lines.append("")
+    lines.append("## Six-Month Endpoint")
+    lines.append("")
+    endpoint = forecast.endpoint.copy()
+    endpoint["region_order"] = endpoint["region"].map({"US": 0, "EA": 1, "JP": 2})
+    endpoint = endpoint.sort_values(["region_order", "tenor_years"])
+    for region in ["US", "EA", "JP"]:
+        group = endpoint[endpoint["region"] == region]
+        lines.append(f"### {REGION_NAMES[region]}")
+        lines.append("")
+        lines.append("| Tenor | Latest yield | Forecast yield | Forecast change |")
+        lines.append("| --- | ---: | ---: | ---: |")
+        for row in group.itertuples(index=False):
+            lines.append(
+                f"| {row.tenor_years}Y | {row.last_actual_yield:.3f}% | "
+                f"{row.forecast_6m_yield:.3f}% | {row.forecast_6m_change_bps:+.1f} bp |"
+            )
+        lines.append("")
+    lines.append("## In-Sample One-Week Factor Fit")
+    lines.append("")
+    lines.append("| Component | R2 | RMSE |")
+    lines.append("| --- | ---: | ---: |")
+    for row in forecast.factor_metrics.itertuples(index=False):
+        lines.append(f"| {row.component} | {row.one_week_r2:.3f} | {row.one_week_rmse:.3f} |")
+    lines.append("")
+    lines.append(
+        "This is a mechanical statistical forecast, not a macro scenario or investment "
+        "recommendation. Linear factor models are especially limited over six-month "
+        "horizons because policy decisions, inflation shocks, and risk sentiment can "
+        "move curves in ways not present in recent lagged PC scores."
+    )
+    lines.append("")
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def write_outputs(
+    result: ScopeResult,
+    weekly: pd.DataFrame,
+    changes_bps: pd.DataFrame,
+    forecast: ForecastResult,
+    results_dir: Path,
+    figures_dir: Path,
+    horizon_weeks: int,
+) -> None:
     result.variance.to_csv(results_dir / "pca_explained_variance.csv", index=False)
     result.loadings.to_csv(results_dir / "pca_loadings.csv", index=False)
     result.scores.to_csv(results_dir / "pca_scores.csv", index=False)
     result.interpretations.to_csv(results_dir / "component_interpretations.csv", index=False)
+    forecast.factor_scores.to_csv(results_dir / "forecast_6m_factor_scores.csv")
+    forecast.changes_bps.to_csv(results_dir / "forecast_6m_weekly_changes_bps.csv")
+    forecast.yields.to_csv(results_dir / "forecast_6m_weekly_yields.csv")
+    forecast.endpoint.to_csv(results_dir / "forecast_6m_endpoint.csv", index=False)
+    forecast.coefficients.to_csv(results_dir / "forecast_model_coefficients.csv", index=False)
+    forecast.factor_metrics.to_csv(results_dir / "forecast_model_factor_metrics.csv", index=False)
+    forecast.feature_metrics.to_csv(results_dir / "forecast_model_feature_metrics.csv", index=False)
 
     plot_explained_variance(result.variance, figures_dir)
     plot_regional_loadings(result.loadings, figures_dir)
     plot_global_heatmap(result.loadings, figures_dir)
+    plot_forecast_curves(weekly, forecast, figures_dir)
     write_markdown_report(
         results_dir / "component_interpretation.md",
         weekly,
@@ -524,11 +771,13 @@ def write_outputs(result: ScopeResult, weekly: pd.DataFrame, changes_bps: pd.Dat
         result.variance,
         result.interpretations,
     )
+    write_forecast_report(results_dir / "forecast_6m_report.md", weekly, forecast, horizon_weeks)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--components", type=int, default=5, help="Retained components for the global PCA.")
+    parser.add_argument("--forecast-weeks", type=int, default=26, help="Weekly forecast horizon.")
     parser.add_argument("--max-us-pages", type=int, default=80, help="Maximum Treasury HTML pages to scan.")
     return parser.parse_args()
 
@@ -561,8 +810,15 @@ def main() -> None:
 
     print("Running PCA...")
     result = run_all_pcas(changes_bps, n_components=args.components)
-    write_outputs(result, weekly, changes_bps, results_dir, figures_dir)
-    print("Done. See results/component_interpretation.md")
+    print("Forecasting yield curves with PCA factors and linear regression...")
+    forecast = forecast_yield_curves(
+        weekly,
+        changes_bps,
+        n_components=args.components,
+        horizon_weeks=args.forecast_weeks,
+    )
+    write_outputs(result, weekly, changes_bps, forecast, results_dir, figures_dir, args.forecast_weeks)
+    print("Done. See results/component_interpretation.md and results/forecast_6m_report.md")
 
 
 if __name__ == "__main__":

@@ -28,8 +28,11 @@ The ECB pipeline downloads one CSV per tenor by replacing `SR_10Y` in the linked
 4. Compute weekly yield changes in basis points.
 5. Standardize each feature and run PCA.
 6. Run separate regional PCAs and one global PCA over all region-tenor features.
+7. Forecast the next 26 weekly curves by fitting a linear regression from current global PC scores to next-week global PC scores, then mapping the forecast scores back into yield changes.
 
 PCA is performed on changes, not yield levels, because level series are highly persistent. Standardization makes the component patterns comparable across regions and tenors.
+
+The six-month forecast is a simple PCA-factor linear model. It is useful as a transparent baseline, not as a structural macro forecast.
 
 ## Outputs
 
@@ -43,6 +46,11 @@ PCA is performed on changes, not yield levels, because level series are highly p
 | `results/pca_scores.csv` | Weekly component score history. |
 | `results/component_interpretations.csv` | Structured interpretation for each retained component. |
 | `results/component_interpretation.md` | Human-readable report. |
+| `results/forecast_6m_report.md` | Human-readable six-month forecast report. |
+| `results/forecast_6m_weekly_yields.csv` | Forecast yield curves for each future week. |
+| `results/forecast_6m_weekly_changes_bps.csv` | Forecast weekly yield changes in basis points. |
+| `results/forecast_6m_endpoint.csv` | Latest actual curve versus six-month forecast endpoint. |
+| `results/forecast_model_*.csv` | Linear-regression coefficients and in-sample fit diagnostics. |
 | `figures/` | Variance and loading plots. |
 
 ## Run
@@ -58,4 +66,10 @@ To change the number of components:
 
 ```bash
 python scripts/run_pipeline.py --components 5
+```
+
+To change the forecast horizon:
+
+```bash
+python scripts/run_pipeline.py --forecast-weeks 26
 ```
