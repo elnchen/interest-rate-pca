@@ -53,7 +53,7 @@ The six-month forecast is a simple PCA-factor linear model.
 | `results/forecast_model_*.csv` | Linear-regression coefficients and in-sample fit diagnostics. |
 | `figures/` | Variance and loading plots. |
 | `reports/interest_rate_pca_report.tex` | Concise LaTeX write-up focused on interpretation and forecast results. |
-| `reports/interest_rate_pca_report.pdf` | Compiled 4-page PDF version of the LaTeX report. |
+| `reports/interest_rate_pca_report.pdf` | Compiled 10-page PDF version of the LaTeX report. |
 
 ## Run
 

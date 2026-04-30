@@ -1,6 +1,6 @@
-\documentclass[10pt]{article}
+\documentclass[11pt]{article}
 
-\usepackage[margin=0.72in]{geometry}
+\usepackage[margin=0.76in]{geometry}
 \usepackage{array}
 \usepackage{booktabs}
 \usepackage[hidelinks]{hyperref}
@@ -8,36 +8,111 @@
 \usepackage{xcolor}
 
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{0.35em}
+\setlength{\parskip}{0.38em}
 \setlength{\tabcolsep}{5pt}
 \renewcommand{\arraystretch}{1.08}
 \newcommand{\img}[2]{\pdfximage width #1 {#2}\pdfrefximage\pdflastximage}
 
-\title{\vspace{-1.0cm}PCA Analysis and Six-Month Forecast of U.S., Euro-Area, and Japanese Yield Curves}
-\author{Interest Rate PCA Project}
-\date{Report date: April 30, 2026}
-
 \begin{document}
-\maketitle
-\vspace{-0.75cm}
+\pagenumbering{gobble}
 
-\begin{abstract}
-This report summarizes a principal component analysis (PCA) of government yield curves for the United States, the euro area, and Japan using common maturities of 2, 5, 10, 20, and 30 years. The model uses weekly yield changes in basis points, standardizes each series, estimates regional and global PCA factors, and then builds a transparent six-month forecast from the first five global PCA scores using ordinary least squares. The core empirical result is that the first regional component is a level factor, the second is a slope factor, and the third is generally curvature. The six-month linear forecast is deliberately conservative: it implies only small yield changes and has low one-week factor $R^2$, which is consistent with the difficulty of forecasting weekly rate changes from lagged curve moves alone.
-\end{abstract}
+\begin{titlepage}
+\centering
+\vspace*{1.25in}
+{\Large Math364\par}
+\vspace{0.55in}
+{\huge\bfseries Principal Component Analysis and Six-Month Forecasting of Global Government Yield Curves\par}
+\vspace{0.45in}
+{\Large U.S., Euro-Area, and Japanese Bond Markets\par}
+\vspace{0.85in}
+{\large Eleanor Chen \quad and \quad Max Liu\par}
+\vfill
+{\large Report date: April 30, 2026\par}
+\vspace{0.2in}
+{\large Data sample through April 24, 2026\par}
+\end{titlepage}
+\pagenumbering{arabic}
 
-\section{Workflow and Data}
+\section*{Abstract}
 
-The workflow is designed to be reproducible rather than manually curated. The pipeline downloads the source data, standardizes the curve tenors, estimates PCA factors, writes interpretation tables, and generates forecast files.
+This project studies whether a small number of statistical factors can explain and forecast movements in major government yield curves. We collect daily U.S. Treasury, euro-area government-bond, and Japanese government-bond yield-curve data, align the markets to a common set of maturities, and run principal component analysis (PCA) on weekly yield changes. We then use the first five global PCA scores in a linear regression model to forecast the yield curves six months ahead.
 
-\textbf{Sources.} U.S. yields come from the U.S. Treasury Daily Treasury Par Yield Curve Rates. Euro-area data come from the ECB Data Portal yield-curve API, using all euro-area government-bond spot rates. Japan data come from a FetchSeries workbook whose metadata identifies Japan's Ministry of Finance as the source. The common-tenor set is 2Y, 5Y, 10Y, 20Y, and 30Y.
+The main result is interpretability rather than strong predictability. Region-by-region, the first component is a level factor, the second is a slope factor, and the third is generally a curvature factor. These findings match the classic empirical structure of fixed-income risk: most curve movement is parallel repricing, while smaller components describe steepening/flattening and belly-versus-wing moves. The global PCA also reveals regional spread components, showing that U.S., euro-area, and Japanese curves do not always move together.
 
-\textbf{Transformation.} Daily data are converted to Friday weekly observations using the last available quote in each week. PCA is estimated on weekly yield changes in basis points, not on yield levels. This matters because yield levels are persistent and would produce misleadingly high fit statistics. Weekly changes are standardized feature by feature before PCA, so each tenor and region contributes on comparable scale.
+The six-month forecast is deliberately conservative. Because lagged PCA scores have weak power for predicting future weekly rate changes, the linear regression model produces small yield changes: slightly steeper U.S. and euro-area curves, and modest upward changes in Japan. The low one-week $R^2$ values are not a coding error; they reflect the fact that weekly interest-rate changes are mostly driven by new information rather than by last week's curve movement.
 
-\textbf{Sample.} The aligned PCA sample contains 1,053 weekly changes from February 17, 2006 through April 24, 2026. The latest weekly curve used for the forecast is April 24, 2026. The six-month forecast horizon runs 26 weeks through October 23, 2026.
+\section{Project Goal and Workflow}
 
-\section{PCA Results}
+The goal of the project is to take a large panel of yield-curve observations and reduce it to a small number of economically interpretable factors. This helps answer three questions:
 
-PCA compresses the 15 region-tenor weekly change series into orthogonal factors. In the regional models, the first two components explain most variation. In the global model, variation is spread across both common global movement and regional spread factors.
+\begin{enumerate}
+\item Which yield-curve movements explain most weekly rate variation?
+\item Are the components similar across the United States, the euro area, and Japan?
+\item Can the first five PCA factors be used in a simple linear model to predict the curves six months forward?
+\end{enumerate}
+
+The workflow is fully reproducible. First, the script downloads the source data and converts each market to a daily wide table. Second, it keeps a common tenor set of 2Y, 5Y, 10Y, 20Y, and 30Y. Third, it resamples each series to Friday weekly observations and computes weekly changes in basis points. Fourth, it standardizes every feature and estimates both regional and global PCA models. Finally, it forecasts the first five global PCA scores with ordinary least squares and maps those predicted factor scores back into yield-curve changes.
+
+\begin{table}[htbp]
+\centering
+\caption{Data sources and modeling choices}
+\small
+\begin{tabular}{p{1.25in}p{2.55in}p{2.4in}}
+\toprule
+Item & Choice & Reason \\
+\midrule
+Markets & United States, euro area, Japan & Captures three major developed bond markets. \\
+Tenors & 2Y, 5Y, 10Y, 20Y, 30Y & Common across all three regions and enough to identify level, slope, and curvature. \\
+Frequency & Weekly Friday observations & Reduces daily noise and aligns markets with different holidays. \\
+PCA input & Weekly yield changes in basis points & Avoids persistence in yield levels and focuses on curve moves. \\
+Scaling & Standardize each region-tenor series & Prevents high-volatility tenors or markets from mechanically dominating PCA. \\
+Forecast model & Linear regression on lagged global PC scores & Transparent baseline model that is easy to interpret. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Sample.} The final aligned PCA sample contains 1,053 weekly changes from February 17, 2006 through April 24, 2026. The forecast starts from the April 24, 2026 weekly curve and extends 26 weeks to October 23, 2026.
+
+\clearpage
+
+\section{Data Preparation and PCA Method}
+
+Let $y_{i,t}$ be the yield for feature $i$ at week $t$, where a feature is one region-tenor pair such as U.S. 10Y or Japan 30Y. The model does not run PCA on $y_{i,t}$ directly. Instead it uses weekly changes:
+\[
+\Delta y_{i,t}=100(y_{i,t}-y_{i,t-1}),
+\]
+where the factor 100 converts percentage-point changes into basis points. Each change series is then standardized:
+\[
+z_{i,t}=\frac{\Delta y_{i,t}-\mu_i}{\sigma_i}.
+\]
+The standardized data matrix $Z$ has 15 columns: five tenors for each of three regions. PCA finds orthogonal directions $v_1,\ldots,v_k$ that maximize variance in the projected scores:
+\[
+s_{j,t}=Z_t v_j.
+\]
+The entries of $v_j$ are called loadings. A loading is the weight assigned to a specific region-tenor series inside one principal component. The sign of an individual component is arbitrary, so the pipeline orients components so level or long-end exposure is positive when possible.
+
+This modeling choice has an important implication. PCA is excellent at describing the structure of rate movements, but PCA alone is not a forecasting model. It tells us which combinations of yield changes are historically important; it does not guarantee that those combinations are predictable. That is why the forecast stage is separated from the decomposition stage.
+
+\begin{table}[htbp]
+\centering
+\caption{Interpretation guide for PCA loadings}
+\small
+\begin{tabular}{p{1.25in}p{2.45in}p{2.55in}}
+\toprule
+Pattern & Loading shape & Economic interpretation \\
+\midrule
+Level & Same sign across most tenors & Broad rise or fall in yields across the curve. \\
+Slope & Short maturities load against long maturities & Steepening or flattening of the yield curve. \\
+Curvature & Belly maturities load against wings & Butterfly move, often centered around 5Y or 10Y. \\
+Regional spread & One region loads against another & Cross-market divergence between U.S., euro-area, and Japanese rates. \\
+Localized residual & Loadings concentrated in a small set of tenors & Smaller relative-value moves not summarized by level, slope, or curvature. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Explained Variance Results}
+
+The explained-variance table shows how much standardized weekly-change variation each component captures. For each regional curve, PC1 and PC2 explain nearly all of the variation. This is a common result in fixed-income markets: one factor captures broad rate repricing, while the second captures slope changes.
 
 \begin{table}[htbp]
 \centering
@@ -55,67 +130,85 @@ Global & 50.6\% & 16.1\% & 11.7\% & 8.0\% & 5.5\% \\
 \end{tabular}
 \end{table}
 
+The U.S. curve has the strongest first component: PC1 explains 85.5\% of variance, meaning U.S. weekly moves are especially dominated by parallel repricing. Japan has the smallest PC1 share and the largest PC2 share. This means Japanese curve moves in the sample have relatively more slope behavior. The global PCA is more distributed: PC1 explains 50.6\%, and the first five components explain 91.9\%. This is expected because the global panel must describe both curve-shape effects and cross-region divergence.
+
 \begin{figure}[htbp]
 \centering
-\begin{minipage}{0.48\linewidth}
+\begin{minipage}{0.49\linewidth}
 \centering
-\img{\linewidth}{figures/global_explained_variance.png}
-\caption{Global explained variance. The first five global PCs explain 91.9\% of standardized weekly-change variance.}
+\img{\linewidth}{figures/us_explained_variance.png}
+\caption{U.S. explained variance. PC1 dominates, with PC2 capturing most of the remaining shape risk.}
 \end{minipage}
 \hfill
-\begin{minipage}{0.48\linewidth}
+\begin{minipage}{0.49\linewidth}
 \centering
-\img{\linewidth}{figures/global_loadings_heatmap.png}
-\caption{Global PCA loading heatmap. PC1 is common level risk; later PCs separate regions and curve segments.}
+\img{\linewidth}{figures/global_explained_variance.png}
+\caption{Global explained variance. The global model needs more components because it captures regional divergence as well as curve shape.}
 \end{minipage}
 \end{figure}
 
-\textbf{Interpretation.} PC1 is a broad level factor. In the regional models, its loadings have the same sign across tenors, so a positive PC1 score means yields rise across the curve. PC2 is a slope factor: short maturities load against long maturities, so a positive PC2 score is a steepening move after the orientation convention used in the pipeline. PC3 is generally a curvature or butterfly factor: the middle of the curve moves against the wings.
+\clearpage
+
+\section{Regional Loading Interpretation}
+
+The loading curves reveal why PC1, PC2, and PC3 can be interpreted as level, slope, and curvature factors. In the U.S. model, PC1 has positive loadings across all maturities and is fairly flat. A positive PC1 score therefore represents a broad upward rate move. PC2 has negative loadings at the short end and positive loadings at the long end, so it represents a steepening move when the score is positive. PC3 emphasizes the difference between the belly and the wings of the curve.
 
 \begin{figure}[htbp]
 \centering
 \begin{minipage}{0.32\linewidth}
 \centering
 \img{\linewidth}{figures/us_regional_loadings.png}
-\caption{U.S. loadings. PC1 is nearly parallel; PC2 captures short-versus-long slope.}
+\caption{U.S. regional PCA loadings.}
 \end{minipage}
 \hfill
 \begin{minipage}{0.32\linewidth}
 \centering
 \img{\linewidth}{figures/ea_regional_loadings.png}
-\caption{Euro-area loadings. PC1 is level, PC2 is slope, and PC3 emphasizes belly-versus-wing curvature.}
+\caption{Euro-area regional PCA loadings.}
 \end{minipage}
 \hfill
 \begin{minipage}{0.32\linewidth}
 \centering
 \img{\linewidth}{figures/jp_regional_loadings.png}
-\caption{Japan loadings. Japan has a slightly larger slope share than the U.S. and euro area.}
+\caption{Japan regional PCA loadings.}
 \end{minipage}
 \end{figure}
 
-\section{Economic Reading of the Components}
+The euro-area and Japanese loading plots show the same broad hierarchy but with different intensity. Euro-area PC3 is visibly a belly-versus-wing factor, with the 10Y area moving against the short and long ends. Japan has a larger slope component, consistent with the explained-variance table. Across all three regions, the conclusion is stable: fixed-income curve risk is low-dimensional, and most movement can be summarized with three shapes.
 
-\textbf{Level factor.} The level factor is the dominant source of curve variation. For the U.S., PC1 explains 85.5\% of weekly curve-change variance; in the euro area and Japan it explains 77.0\% and 72.0\%, respectively. This means most weekly curve movements are broad parallel repricings rather than isolated tenor moves.
+\textbf{What the loading magnitude means.} A larger absolute loading means that tenor contributes more to the component score. For example, if the 30Y loading is large and positive in PC2 while the 2Y loading is negative, then a positive PC2 score corresponds to a relative rise in long yields versus short yields. The loading is not itself a yield change; it is a coefficient used to combine standardized yield changes into a PCA factor.
 
-\textbf{Slope factor.} The second component explains 12.5\% in the U.S., 16.0\% in the euro area, and 20.9\% in Japan. The larger Japanese slope share is consistent with a curve where policy-anchor and long-end term-premium dynamics can separate more visibly. A positive slope score means long rates increase relative to short rates; a negative score is a flattening move.
+\section{Global Components and Cross-Market Risk}
 
-\textbf{Curvature factor.} The third component is smaller but economically useful. It captures belly-versus-wing movements, especially around the 5Y and 10Y sector. This component is useful for understanding butterfly trades or relative-value changes that do not look like a simple level or slope shift.
-
-\textbf{Global factors.} The global PCA shows that a single worldwide rate factor explains about half of all standardized weekly variation. PC2 and PC3 are more regional: they separate Japan, the euro area, and the U.S. rather than acting as pure curve-shape factors. This suggests that cross-market divergence is an important part of global rates risk.
-
-\section{Six-Month Linear Forecast}
-
-The forecast model uses the first five global PCA scores. It fits a multi-output linear regression:
-\[
-\mathbf{s}_{t+1} = \alpha + B\mathbf{s}_t + \varepsilon_{t+1},
-\]
-where $\mathbf{s}_t$ is the vector of the first five global PC scores at week $t$. The model recursively predicts 26 weekly PC-score vectors, maps them back to yield changes, and accumulates those changes from the latest observed curve.
+The global PCA combines all 15 series into one model. The first global component is still a level factor, but later components are not simply global slope and curvature. Instead, PC2 and PC3 separate regions. This is important because global rates risk is not only about one worldwide curve move; it also includes relative repricing between U.S., euro-area, and Japanese markets.
 
 \begin{figure}[htbp]
 \centering
-\img{0.94\linewidth}{figures/forecast_6m_yield_curves.png}
-\caption{Latest actual curve, three-month forecast, and six-month forecast. The forecast is muted because lagged PCA scores have weak predictive power for future weekly rate changes.}
+\img{0.76\linewidth}{figures/global_loadings_heatmap.png}
+\caption{Global PCA loading heatmap. Warm and cool colors identify which region-tenor series move together or against each other within each component.}
 \end{figure}
+
+The heatmap shows that global PC1 has broadly same-direction exposure, especially to U.S. intermediate and long yields. Global PC2 loads positively on Japan and negatively on the euro area, making it a Japan-versus-Europe spread factor. Global PC3 loads strongly on the U.S. against the euro area, making it a U.S.-versus-Europe spread factor. Global PC4 has a slope-like profile across several markets. These components are useful because a portfolio exposed to ``rates'' may still behave differently depending on whether global, regional, or curve-shape factors are moving.
+
+\section{Forecasting With PCA Factors}
+
+After estimating the first five global PCA factors, the forecast model uses a linear regression:
+\[
+\mathbf{s}_{t+1}=\alpha+B\mathbf{s}_{t}+\varepsilon_{t+1},
+\]
+where $\mathbf{s}_t$ is the vector of the first five global PCA scores. The fitted model forecasts one week ahead. To obtain a six-month forecast, the model is applied recursively for 26 weeks. Each predicted score vector is mapped back through the PCA loadings and standardization parameters to recover predicted weekly yield changes. These weekly changes are then accumulated from the latest observed yield curve.
+
+This is intentionally a simple benchmark. It tests whether last week's factor scores contain useful linear information about next week's factor scores. If the coefficients are close to zero, the forecast naturally drifts toward the historical average weekly change. That is what happens here.
+
+\begin{figure}[htbp]
+\centering
+\img{0.92\linewidth}{figures/forecast_6m_yield_curves.png}
+\caption{Latest actual curve, three-month forecast, and six-month forecast. The forecast changes are small because the linear factor model finds little persistence in weekly PCA score changes.}
+\end{figure}
+
+\section{Forecast Results and Interpretation}
+
+The six-month forecast endpoint is shown below. The U.S. forecast implies a very small steepening: the 2Y and 5Y fall slightly while the 20Y and 30Y rise slightly. The euro-area forecast also shows mild upward pressure, especially beyond 10Y. Japan has the largest positive forecast changes, though even there the move is only about 3 to 4 basis points over six months.
 
 \begin{table}[htbp]
 \centering
@@ -144,10 +237,51 @@ Japan & 30Y & 3.660\% & 3.697\% & +3.7 bp \\
 \end{tabular}
 \end{table}
 
-\section{Forecast Reliability and Conclusion}
+\section{Forecast Reliability}
 
-The linear forecast should be read as a baseline, not a high-conviction view. The in-sample one-week $R^2$ values are very small: PC1 is 0.010, PC2 is 0.010, PC3 is 0.022, PC4 is 0.016, and PC5 is 0.008. This is expected. PCA explains how rates co-move, but it does not create predictability. Weekly rate changes are driven largely by new macro information, central-bank surprises, inflation data, and risk sentiment.
+The forecast should not be interpreted as a high-conviction prediction of where rates must go. It is better interpreted as a transparent baseline. The in-sample one-week $R^2$ values are very small:
 
-The main conclusion is therefore twofold. First, PCA gives a clean and interpretable decomposition of yield-curve risk: level dominates, slope is second, and curvature is smaller but economically meaningful. Second, a simple lagged-score linear model produces muted six-month forecasts because recent factor moves contain little information about next week's factor moves. For a stronger forecasting system, the next step would be to add macro and market predictors such as policy-rate expectations, inflation surprises, labor-market data, futures-implied rates, term-premium proxies, volatility, and risk-market indicators.
+\begin{table}[htbp]
+\centering
+\caption{One-week linear regression fit for global PCA scores}
+\small
+\begin{tabular}{lrr}
+\toprule
+Component & One-week $R^2$ & One-week RMSE \\
+\midrule
+PC1 & 0.010 & 2.741 \\
+PC2 & 0.010 & 1.548 \\
+PC3 & 0.022 & 1.310 \\
+PC4 & 0.016 & 1.085 \\
+PC5 & 0.008 & 0.899 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The low $R^2$ occurs because the model is predicting weekly changes, not yield levels. Yield levels are persistent, so a naive model that predicts next week's level from this week's level would look much more accurate. But the economically useful question is whether we can predict the change. Weekly changes in interest rates are heavily influenced by new information: central-bank speeches, inflation releases, labor-market data, auction results, volatility, and risk sentiment. These surprises are not contained very strongly in last week's PCA scores.
+
+This result is not a failure of PCA. PCA is a decomposition method, not a forecasting method. It explains how yields move together after the fact. Forecasting requires information about why future expectations might change. The linear regression model intentionally uses only lagged PCA scores, so its muted forecast is evidence that lagged curve movement alone has limited predictive power.
+
+\section{Conclusion and Extensions}
+
+The project produces two main findings. First, the structure of yield-curve risk is highly interpretable. Level risk dominates in all three regions, slope risk is second, and curvature risk is smaller but still meaningful. This matches the standard fixed-income intuition that a small number of factors can describe most government-bond curve movement.
+
+Second, interpretability is not the same as forecastability. The first five global PCA factors explain 91.9\% of historical standardized weekly variation, but their lagged values explain very little of next week's factor movement. The six-month forecast is therefore small and mean-reverting. This is a useful baseline because it shows what the yield-curve model predicts when it is given no macro information beyond recent curve movements.
+
+Several extensions would make the forecast more realistic. A stronger model could add policy-rate expectations, futures-implied short rates, inflation surprises, unemployment data, central-bank meeting dates, term-premium estimates, volatility indices, exchange rates, and equity risk indicators. A vector autoregression, dynamic factor model, or state-space model could also be used instead of simple ordinary least squares. For this Math364 project, however, the simple PCA-plus-linear-regression framework has the advantage of being transparent, reproducible, and easy to interpret.
+
+\clearpage
+
+\section*{References}
+
+\begin{enumerate}
+\item U.S. Department of the Treasury. ``Daily Treasury Rates.'' \href{https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve}{Treasury Daily Treasury Rates page}. Accessed April 30, 2026.
+\item European Central Bank. ``Yield curves.'' \href{https://data.ecb.europa.eu/methodology/yield-curves}{ECB Data Portal methodology page}. Accessed April 30, 2026.
+\item European Central Bank. ECB Data Portal API for yield-curve spot rates. Example endpoint: \href{https://data-api.ecb.europa.eu/service/data/YC/B.U2.EUR.4F.G_N_C.SV_C_YM.SR_10Y?startPeriod=2004-09-06&format=csvdata}{ECB 10Y spot-rate CSV endpoint}. Accessed April 30, 2026.
+\item FetchSeries. ``Japan constant-maturity government-bond yield curve (Ministry of Finance).'' \href{https://www.fetchseries.com/interest-rates/japan-constant-maturity-government-bond-yield-curve-ministry-of-finance/}{FetchSeries Japan yield-curve workbook page}. Accessed April 30, 2026.
+\item Jolliffe, I. T. \textit{Principal Component Analysis}. Springer, 2002.
+\item Litterman, R., and J. Scheinkman. ``Common Factors Affecting Bond Returns.'' \textit{Journal of Fixed Income}, 1991.
+\item scikit-learn developers. ``PCA'' and ``LinearRegression'' documentation. \href{https://scikit-learn.org/}{scikit-learn documentation}. Accessed April 30, 2026.
+\end{enumerate}
 
 \end{document}
