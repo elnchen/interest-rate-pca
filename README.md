@@ -52,6 +52,8 @@ The six-month forecast is a simple PCA-factor linear model.
 | `results/forecast_6m_endpoint.csv` | Latest actual curve versus six-month forecast endpoint. |
 | `results/forecast_model_*.csv` | Linear-regression coefficients and in-sample fit diagnostics. |
 | `figures/` | Variance and loading plots. |
+| `reports/interest_rate_pca_report.tex` | Concise LaTeX write-up focused on interpretation and forecast results. |
+| `reports/interest_rate_pca_report.pdf` | Compiled 4-page PDF version of the LaTeX report. |
 
 ## Run
 
@@ -72,4 +74,10 @@ To change the forecast horizon:
 
 ```bash
 python scripts/run_pipeline.py --forecast-weeks 26
+```
+
+To rebuild the LaTeX report PDF from the repo root:
+
+```bash
+pdflatex -interaction=nonstopmode -halt-on-error -output-directory reports reports/interest_rate_pca_report.tex
 ```
